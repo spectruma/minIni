@@ -1,29 +1,38 @@
-/*  Glue functions for the minIni library, based on the C/C++ stdio library
+/*  Glue functions for the minIni library, adapted for FatFS on STM32
  *
- *  Or better said: this file contains macros that maps the function interface
- *  used by minIni to the standard C/C++ file I/O functions.
+ *  This file contains macros that map the function interface
+ *  used by minIni to the FatFS file I/O functions for STM32 embedded systems.
  *
- *  By CompuPhase, 2008-2014
- *  This "glue file" is in the public domain. It is distributed without
- *  warranties or conditions of any kind, either express or implied.
+ *  Modified for STM32H7 with FatFS integration
  */
 
-/* map required file I/O types and functions to the standard C library */
+/* map required file I/O types and functions to FatFS library */
+#include "ff.h"
 #include <stdio.h>
+#include <string.h>
 
-#define INI_FILETYPE                    FILE*
-#define ini_openread(filename,file)     ((*(file) = fopen((filename),"rb")) != NULL)
-#define ini_openwrite(filename,file)    ((*(file) = fopen((filename),"wb")) != NULL)
-#define ini_openrewrite(filename,file)  ((*(file) = fopen((filename),"r+b")) != NULL)
-#define ini_close(file)                 (fclose(*(file)) == 0)
-#define ini_read(buffer,size,file)      (fgets((buffer),(size),*(file)) != NULL)
-#define ini_write(buffer,file)          (fputs((buffer),*(file)) >= 0)
-#define ini_rename(source,dest)         (rename((source), (dest)) == 0)
-#define ini_remove(filename)            (remove(filename) == 0)
+/* Include STM32 core for cache management */
+#ifdef STM32H7xx_HAL_H
+#include "stm32h7xx_hal.h"
+#endif
 
-#define INI_FILEPOS                     long int
-#define ini_tell(file,pos)              (*(pos) = ftell(*(file)))
-#define ini_seek(file,pos)              (fseek(*(file), *(pos), SEEK_SET) == 0)
+#if !defined INI_LINETERM
+  #define INI_LINETERM  "\n"
+#endif
+
+#define INI_FILETYPE    FIL
+#define ini_openread(filename,file)   ({ SCB_CleanInvalidateDCache(); (f_open((file), (filename), FA_READ+FA_OPEN_EXISTING) == FR_OK); })
+#define ini_openwrite(filename,file)  ({ SCB_CleanInvalidateDCache(); (f_open((file), (filename), FA_WRITE+FA_CREATE_ALWAYS) == FR_OK); })
+#define ini_openrewrite(filename,file) ({ SCB_CleanInvalidateDCache(); (f_open((file), (filename), FA_READ+FA_WRITE+FA_OPEN_EXISTING) == FR_OK); })
+#define ini_close(file)               (f_close(file) == FR_OK)
+#define ini_read(buffer,size,file)    ({ SCB_CleanInvalidateDCache(); f_gets((buffer), (size), (file)); })
+#define ini_write(buffer,file)        ({ SCB_CleanInvalidateDCache(); f_puts((buffer), (file)); })
+#define ini_rename(source,dest)       (f_rename((source), (dest)) == FR_OK)
+#define ini_remove(filename)          (f_unlink(filename) == FR_OK)
+
+#define INI_FILEPOS                   FSIZE_t
+#define ini_tell(file,pos)            (*(pos) = f_tell((file)))
+#define ini_seek(file,pos)            (f_lseek((file), *(pos)) == FR_OK)
 
 /* for floating-point support, define additional types and functions */
 #define INI_REAL                        float
